@@ -114,10 +114,7 @@ public final class MainActivity extends FlutterActivity {
                         String outApk = outApkDir.getAbsolutePath() + "/Aliucord.apk";
 
                         try {
-                            File aliucordDex = new File(getFilesDir(), "classes.dex");
-
-                            // NOTE: some files that may be not replaced if using aliucord as base (and currently are):
-                            // icon files, AndroidManifest.xml, classes5.dex (pine classes)
+                            File injectorZip = new File(getFilesDir(), "injector.zip");
 
                             updater.call("Copying original apk (" + path + ")");
                             File outApkFile = new File(outApk);
@@ -145,15 +142,18 @@ public final class MainActivity extends FlutterActivity {
 
                             zip = new Zip(outApk, 6, 'a');
                             if (!patched) {
-                                for (int i = 1; i <= 3; i++) zip.deleteEntry("classes" + (i == 1 ? "" : i) + ".dex");
-                            } else {
-                                zip.deleteEntry("classes.dex");
-                                zip.deleteEntry("classes5.dex");
-                                zip.deleteEntry("classes6.dex");
-                            }
+                                zip.deleteEntry("classes2.dex");
+                                zip.deleteEntry("classes3.dex");
+                            } else zip.deleteEntry("classes5.dex");
                             zip.deleteEntry("AndroidManifest.xml");
-                            zip.deleteEntry("lib/arm64-v8a/libpine.so");
-                            zip.deleteEntry("lib/armeabi-v7a/libpine.so");
+
+                            Zip injector = new Zip(injectorZip.getAbsolutePath(), 6, 'r');
+                            int k = injector.getTotalEntries();
+                            for (int i = 0; i < k; i++) {
+                                injector.openEntryByIndex(i);
+                                if (!injector.isEntryDir()) zip.deleteEntry(injector.getEntryName());
+                                injector.closeEntry();
+                            }
 
                             if (!patched) for (int i = 2; i <= 4; i++) {
                                 String name = "classes" + i + ".dex";
@@ -164,21 +164,24 @@ public final class MainActivity extends FlutterActivity {
                                 cacheFile.delete();
                             }
 
-                            zip.openEntry("classes.dex");
-                            zip.compressFile(aliucordDex.getAbsolutePath());
-                            zip.closeEntry();
-
-                            AssetManager assets = getAssets();
-                            Utils.writeEntry(zip, "classes5.dex", Utils.readBytes(assets.open("pine/classes.dex")));
+                            for (int i = 0; i < k; i++) {
+                                injector.openEntryByIndex(i);
+                                if (!injector.isEntryDir()) {
+                                    byte[] data = injector.readEntry();
+                                    zip.openEntry(injector.getEntryName());
+                                    zip.writeEntry(data, data.length);
+                                    zip.closeEntry();
+                                }
+                                injector.closeEntry();
+                            }
+                            injector.close();
 
                             zip.openEntry("AndroidManifest.xml");
                             zip.compressFile(getFilesDir().getAbsolutePath() + "/AndroidManifest.xml");
                             zip.closeEntry();
 
-                            Utils.writeEntry(zip, "lib/arm64-v8a/libpine.so", Utils.readBytes(assets.open("pine/arm64-v8a/libpine.so")));
-                            Utils.writeEntry(zip, "lib/armeabi-v7a/libpine.so", Utils.readBytes(assets.open("pine/armeabi-v7a/libpine.so")));
-
-                            Utils.writeEntry(zip, "classes6.dex", Utils.readBytes(assets.open("kotlin/classes.dex")));
+                            AssetManager assets = getAssets();
+                            Utils.writeEntry(zip, "classes5.dex", Utils.readBytes(assets.open("kotlin/classes.dex")));
                             zip.close();
 
                             if (methodCall.argument("replaceBg") != Boolean.FALSE) {

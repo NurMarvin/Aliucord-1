@@ -19,6 +19,8 @@ class CheckBoxData {
 }
 
 class SettingsPage extends StatefulWidget {
+  const SettingsPage({Key? key}) : super(key: key);
+
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -26,19 +28,21 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderStateMixin {
   static final List<CheckBoxData> _checkBoxes = [
     CheckBoxData('replace_bg', 'Replace icon background with Aliucord\'s', true),
-    CheckBoxData('use_dex_from_storage', 'Use Injector.dex from storage', false),
+    CheckBoxData('use_dex_from_storage', 'Use Injector.zip from storage', false),
     CheckBoxData('developer_mode', 'Developer Mode', false),
   ];
   int _theme = 0;
-  String _dexLocation = defaultDexLocation;
+  String _injectorLocation = defaultInjectorLocation;
   bool _loaded = false;
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
       _theme = prefs.getInt('theme') ?? _theme;
-      _dexLocation = prefs.getString('dex_location') ?? _dexLocation;
-      _checkBoxes.forEach((data) => data.value = prefs.getBool(data.key) ?? data.defaultValue);
+      _injectorLocation = prefs.getString('dex_location') ?? _injectorLocation;
+      for (var data in _checkBoxes) {
+        data.value = prefs.getBool(data.key) ?? data.defaultValue;
+      }
       _loaded = true;
     }
 
@@ -50,10 +54,10 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
             title: const Text('Theme'),
             trailing: DropdownButton(
               value: _theme,
-              items: [
-                DropdownMenuItem(child: Padding(padding: EdgeInsets.only(right: 70), child: const Text('System')), value: 0),
-                DropdownMenuItem(child: const Text('Light'), value: 1),
-                DropdownMenuItem(child: const Text('Dark'), value: 2),
+              items: const [
+                DropdownMenuItem(child: Padding(padding: EdgeInsets.only(right: 70), child: Text('System')), value: 0),
+                DropdownMenuItem(child: Text('Light'), value: 1),
+                DropdownMenuItem(child: Text('Dark'), value: 2),
               ],
               onChanged: (newValue) {
                 themeManager.switchTheme(newValue as int);
@@ -63,28 +67,30 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
           ),
           ...buildCheckBoxes(),
           ListTile(
-            title: const Text('Dex location'),
-            subtitle: Text(_dexLocation),
+            title: const Text('Zip location'),
+            subtitle: Text(_injectorLocation),
             enabled: prefs.getBool('use_dex_from_storage') ?? false,
             onTap: () async {
-              final path = await pickFile(context, 'Select Injector.dex', '.dex');
+              final path = await pickFile(context, 'Select Injector.zip', '.zip');
               if (path != null) {
                 prefs.setString('dex_location', path);
-                setState(() => _dexLocation = path);
+                setState(() => _injectorLocation = path);
               }
             },
           ),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             child: ElevatedButton(
-              child: const Text('Clear files cache (Injector.dex and patched manifest)', textAlign: TextAlign.center),
+              child: const Text('Clear files cache (Injector.zip and patched manifest)', textAlign: TextAlign.center),
               onPressed: () async {
                 final files = (await getApplicationSupportDirectory()).listSync();
-                for (final file in files) file.delete(recursive: true);
+                for (final file in files) {
+                  file.delete(recursive: true);
+                }
                 prefs.remove('dex_commit');
               },
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.all(7),
+                padding: const EdgeInsets.all(7),
               ),
             ),
           ),

@@ -29,6 +29,7 @@ class InstallPage extends StatefulWidget {
     required this.supportedVersion
   }) : super(key: key);
 
+  @override
   State<InstallPage> createState() => _InstallPageState();
 }
 
@@ -59,23 +60,28 @@ class _InstallPageState extends State<InstallPage> {
 
   void _install(String apk) async {
     final cache = (await getApplicationSupportDirectory()).path;
-    final aliucordDex = '$cache/classes.dex';
+    final injectorZip = '$cache/injector.zip';
     var downloadManifest = true;
+    // TODO: add support for downloading Injector.zip from Patchers repo
     if (prefs.getBool('use_dex_from_storage') ?? false) {
-      final dexFile = File(prefs.getString('dex_location') ?? defaultDexLocation);
-      if (await dexFile.exists()) {
-        await dexFile.copy(aliucordDex);
+      final injectorFile = File(prefs.getString('dex_location') ?? defaultInjectorLocation);
+      if (await injectorFile.exists()) {
+        await injectorFile.copy(injectorZip);
         final manifestFile = File(storageRoot.path + '/Aliucord/AndroidManifest.xml');
         if (await manifestFile.exists()) {
           await manifestFile.copy('$cache/AndroidManifest.xml');
           downloadManifest = false;
         }
         if (prefs.containsKey('dex_commit')) prefs.remove('dex_commit'); // invalidate cache
-      } else if (!await _downloadAliucord(aliucordDex)) return _onFailed();
-    } else if (!await _downloadAliucord(aliucordDex)) return _onFailed();
+      } else /* if (!await _downloadInjector(aliucordDex)) */ {
+        return _onFailed();
+      }
+    } else /* if (!await _downloadInjector(aliucordDex)) */ {
+      return _onFailed();
+    }
     if (downloadManifest && !await _downloadManifest(cache)) return _onFailed();
 
-    final updater = MethodChannel('updater');
+    const updater = MethodChannel('updater');
     updater.setMethodCallHandler((call) async => setState(() => _logs += call.arguments + '\n'));
     try {
       await patchApk(apk, prefs.getBool('replace_bg') ?? true);
@@ -88,23 +94,23 @@ class _InstallPageState extends State<InstallPage> {
     }
   }
 
-  Future<bool> _downloadAliucord(String out) async {
-    if ((prefs.getString('dex_commit') ?? '') == widget.commit && await File(out).exists()) return true;
-    setState(() => _logs += 'Downloading Injector.dex..\n');
-    final url = githubAPI!.getDownloadUrl(widget.commit, 'Injector.dex');
-    try {
-      await dio.download(url, out, onReceiveProgress: (count, total) => setState(() => _progress = count / total));
-      setState(() {
-        _progress = null;
-        _logs += 'Done\n';
-      });
-      return true;
-    } on DioError catch (e) {
-      _onFailed();
-      setState(() => _logs += '${e.error}\n');
-    }
-    return false;
-  }
+  // Future<bool> _downloadInjector(String out) async {
+  //   if ((prefs.getString('dex_commit') ?? '') == widget.commit && await File(out).exists()) return true;
+  //   setState(() => _logs += 'Downloading Injector.dex..\n');
+  //   final url = githubAPI!.getDownloadUrl(widget.commit, 'Injector.dex');
+  //   try {
+  //     await dio.download(url, out, onReceiveProgress: (count, total) => setState(() => _progress = count / total));
+  //     setState(() {
+  //       _progress = null;
+  //       _logs += 'Done\n';
+  //     });
+  //     return true;
+  //   } on DioError catch (e) {
+  //     _onFailed();
+  //     setState(() => _logs += '${e.error}\n');
+  //   }
+  //   return false;
+  // }
 
   Future<bool> _downloadManifest(String cache) async {
     final manifest = '$cache/AndroidManifest.xml';
@@ -143,16 +149,22 @@ class _InstallPageState extends State<InstallPage> {
         final cachedApk = cache.path + '/discord.apk';
         if (!await File(cachedApk).exists()) return _downloadDiscord(cachedApk);
         final info = await getApkInfo(cachedApk);
-        if (info == null || !isVersionSupported(info.versionCode, widget.supportedVersion)) _downloadDiscord(cachedApk);
-        else _install(cachedApk);
+        if (info == null || !isVersionSupported(info.versionCode, widget.supportedVersion)) {
+          _downloadDiscord(cachedApk);
+        } else {
+          _install(cachedApk);
+        }
       });
-    } else _install(widget.apk!);
+    } else {
+      _install(widget.apk!);
+    }
   }
 
+  @override
   Widget build(BuildContext context) => WillPopScope(
     child: Scaffold(
       appBar: AppBar(
-        title: Text('Installing'),
+        title: const Text('Installing'),
         bottom: _progressBar ? PreferredSize(
           preferredSize: Size.zero,
           child: LinearProgressIndicator(value: _progress, minHeight: 6),
